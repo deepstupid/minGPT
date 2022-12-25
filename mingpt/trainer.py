@@ -8,27 +8,36 @@ from collections import defaultdict
 
 import torch
 from torch.utils.data.dataloader import DataLoader
-from mingpt.utils import CfgNode as CN
+from mingpt.utils import CfgNode
 
 class Trainer:
 
     @staticmethod
     def get_default_config():
-        C = CN()
+        C = CfgNode()
         # device to train on
         C.device = 'auto'
         # dataloder parameters
-        C.num_workers = 4
+        #C.num_workers = 4
         # optimizer parameters
         C.max_iters = None
-        C.batch_size = 64
+        C.batch_size = 128
         C.learning_rate = 3e-4
-        C.betas = (0.9, 0.95)
-        C.weight_decay = 0.1 # only applied on matmul weights
-        C.grad_norm_clip = 1.0
+        #C.betas = (0.9, 0.95)
+        C.betas = (0.9, 0.999)
+        C.eps = 1E-8
+
+        # weight_decay only applied on matmul weights
+        #C.weight_decay = 0.1
+        C.weight_decay = 0.01
+
+        #C.grad_norm_clip = 1.0
+        C.grad_norm_clip = None
+
         return C
 
     def __init__(self, config, model, train_dataset):
+        self.loss = None
         self.config = config
         self.model = model
         self.optimizer = None
@@ -71,7 +80,7 @@ class Trainer:
             shuffle=False,
             pin_memory=True,
             batch_size=config.batch_size,
-            num_workers=config.num_workers,
+            #num_workers=config.num_workers,
         )
 
         model.train()
@@ -95,7 +104,10 @@ class Trainer:
             # backprop and update the parameters
             model.zero_grad(set_to_none=True)
             self.loss.backward()
-            torch.nn.utils.clip_grad_norm_(model.parameters(), config.grad_norm_clip)
+
+            if (not config.grad_norm_clip is None):
+                torch.nn.utils.clip_grad_norm_(model.parameters(), config.grad_norm_clip)
+
             self.optimizer.step()
 
             self.trigger_callbacks('on_batch_end')

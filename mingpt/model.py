@@ -14,7 +14,7 @@ import torch
 import torch.nn as nn
 from torch.nn import functional as F
 
-from mingpt.utils import CfgNode as CN
+from mingpt.utils import CfgNode
 
 # -----------------------------------------------------------------------------
 
@@ -23,7 +23,8 @@ class NewGELU(nn.Module):
     Implementation of the GELU activation function currently in Google BERT repo (identical to OpenAI GPT).
     Reference: Gaussian Error Linear Units (GELU) paper: https://arxiv.org/abs/1606.08415
     """
-    def forward(self, x):
+    @staticmethod
+    def forward(x):
         return 0.5 * x * (1.0 + torch.tanh(math.sqrt(2.0 / math.pi) * (x + 0.044715 * torch.pow(x, 3.0))))
 
 class CausalSelfAttention(nn.Module):
@@ -81,7 +82,7 @@ class Block(nn.Module):
         self.mlp = nn.ModuleDict(dict(
             c_fc    = nn.Linear(config.n_embd, 4 * config.n_embd),
             c_proj  = nn.Linear(4 * config.n_embd, config.n_embd),
-            act     = NewGELU(),
+            act     = config.activation,
             dropout = nn.Dropout(config.resid_pdrop),
         ))
         m = self.mlp
@@ -97,9 +98,14 @@ class GPT(nn.Module):
 
     @staticmethod
     def get_default_config():
-        C = CN()
+        C = CfgNode()
         # either model_type or (n_layer, n_head, n_embd) must be given in the config
         C.model_type = 'gpt'
+
+        #C.activation = NewGELU()
+        #C.activation = torch.nn.modules.activation.ReLU()
+        C.activation = torch.nn.modules.activation.LeakyReLU()
+
         C.n_layer = None
         C.n_head = None
         C.n_embd =  None
@@ -112,8 +118,10 @@ class GPT(nn.Module):
         C.attn_pdrop = 0.1
         return C
 
-    def __init__(self, config):
+    def __init__(self, config: CfgNode):
         super().__init__()
+        if (config.activation is None): config.activation = torch.nn.modules.activation.ReLU()
+
         assert config.vocab_size is not None
         assert config.block_size is not None
         self.block_size = config.block_size
@@ -139,6 +147,7 @@ class GPT(nn.Module):
                 'gpt-mini':     dict(n_layer=6, n_head=6, n_embd=192),
                 'gpt-micro':    dict(n_layer=4, n_head=4, n_embd=128),
                 'gpt-nano':     dict(n_layer=3, n_head=3, n_embd=48),
+                'gpt-pico':     dict(n_layer=2, n_head=2, n_embd=16),
             }[config.model_type])
 
         self.transformer = nn.ModuleDict(dict(
@@ -160,13 +169,16 @@ class GPT(nn.Module):
         n_params = sum(p.numel() for p in self.transformer.parameters())
         print("number of parameters: %.2fM" % (n_params/1e6,))
 
-    def _init_weights(self, module):
+    @staticmethod
+    def _init_weights(module):
+        #std = 0.02
+        std = 0.04
         if isinstance(module, nn.Linear):
-            torch.nn.init.normal_(module.weight, mean=0.0, std=0.02)
+            torch.nn.init.normal_(module.weight, mean=0.0, std=std)
             if module.bias is not None:
                 torch.nn.init.zeros_(module.bias)
         elif isinstance(module, nn.Embedding):
-            torch.nn.init.normal_(module.weight, mean=0.0, std=0.02)
+            torch.nn.init.normal_(module.weight, mean=0.0, std=std)
         elif isinstance(module, nn.LayerNorm):
             torch.nn.init.zeros_(module.bias)
             torch.nn.init.ones_(module.weight)
@@ -254,7 +266,7 @@ class GPT(nn.Module):
             {"params": [param_dict[pn] for pn in sorted(list(decay))], "weight_decay": train_config.weight_decay},
             {"params": [param_dict[pn] for pn in sorted(list(no_decay))], "weight_decay": 0.0},
         ]
-        optimizer = torch.optim.AdamW(optim_groups, lr=train_config.learning_rate, betas=train_config.betas)
+        optimizer = torch.optim.AdamW(optim_groups, lr=train_config.learning_rate, betas=train_config.betas, eps=train_config.eps)
         return optimizer
 
     def forward(self, idx, targets=None):
@@ -269,8 +281,7 @@ class GPT(nn.Module):
         x = self.transformer.drop(tok_emb + pos_emb)
         for block in self.transformer.h:
             x = block(x)
-        x = self.transformer.ln_f(x)
-        logits = self.lm_head(x)
+        logits = self.lm_head(self.transformer.ln_f(x))
 
         # if we are given some desired targets also calculate the loss
         loss = None

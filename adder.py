@@ -4,15 +4,16 @@ Trains a GPT to add n-digit numbers.
 
 import os
 import sys
-import json
 
 import torch
 from torch.utils.data import Dataset
 from torch.utils.data.dataloader import DataLoader
 
+from minGPT.mingpt.utils import CfgNode
 from mingpt.model import GPT
 from mingpt.trainer import Trainer
 from mingpt.utils import set_seed, setup_logging, CfgNode as CN
+
 
 # -----------------------------------------------------------------------------
 
@@ -85,7 +86,8 @@ class AdditionDataset(Dataset):
         num_test = min(int(num*0.2), 500) # 20% of the whole dataset, or only up to 500
         self.ixes = perm[:num_test] if split == 'test' else perm[num_test:]
 
-    def get_vocab_size(self):
+    @staticmethod
+    def get_vocab_size():
         return 10 # digits 0..9
 
     def get_block_size(self):
@@ -123,7 +125,7 @@ class AdditionDataset(Dataset):
 if __name__ == '__main__':
 
     # get default config and overrides from the command line, if any
-    config = get_config()
+    config: CfgNode = get_config()
     config.merge_from_args(sys.argv[1:])
     print(config)
     setup_logging(config)
