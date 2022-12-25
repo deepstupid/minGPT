@@ -12,6 +12,16 @@ The minGPT library is three files: [mingpt/model.py](mingpt/model.py) contains t
 - `demo.ipynb` shows a minimal usage of the `GPT` and `Trainer` in a notebook format on a simple sorting example
 - `generate.ipynb` shows how one can load a pretrained GPT2 and generate text given some prompt
 
+### Library Installation
+
+If you want to `import mingpt` into your project:
+
+```
+git clone https://github.com/karpathy/minGPT.git
+cd minGPT
+pip install -e .
+```
+
 ### Usage
 
 Here's how you'd instantiate a GPT-2 (124M param version):
@@ -119,7 +129,7 @@ Papers + some implementation notes:
 - When working with images, we pick the identity permutation πi = i for 1 ≤ i ≤ n, also known as raster order.
 - we create our own 9-bit color palette by clustering (R, G, B) pixel values using k-means with k = 512.
 - Our largest model, iGPT-XL, contains L = 60 layers and uses an embedding size of d = 3072 for a total of 6.8B parameters.
-- Our next largest model, iGPT-L, is essentially identical to GPT-2 with L = 48 layers, but contains a slightly smaller embedding size of d = 1536 (vs 1600) for a total of 1.4M parameters.
+- Our next largest model, iGPT-L, is essentially identical to GPT-2 with L = 48 layers, but contains a slightly smaller embedding size of d = 1536 (vs 1600) for a total of 1.4B parameters.
 - We use the same model code as GPT-2, except that we initialize weights in the layerdependent fashion as in Sparse Transformer (Child et al., 2019) and zero-initialize all projections producing logits.
 - We also train iGPT-M, a 455M parameter model with L = 36 and d = 1024
 - iGPT-S, a 76M parameter model with L = 24 and d = 512 (okay, and how many heads? looks like the Github code claims 8)
